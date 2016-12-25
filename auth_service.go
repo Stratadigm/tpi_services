@@ -20,8 +20,8 @@ func Login(c context.Context, requestUser *tpi_data.User) (int, []byte) {
 		if err != nil {
 			return http.StatusInternalServerError, []byte("")
 		} else {
-			//response, _ := json.Marshal(TokenAuthentication{token})
-			return http.StatusOK, []byte(token) //response
+			response, _ := json.Marshal(token)
+			return http.StatusOK, response //[]byte(token)
 		}
 	}
 
@@ -37,7 +37,7 @@ func RefreshToken(c context.Context, requestUser *tpi_data.User) []byte {
 		log.Errorf(c, "RefreshToken: generate token: %v\n", err)
 		return empty
 	}
-	response, err := json.Marshal(TokenAuthentication{token})
+	response, err := json.Marshal(token)
 	if err != nil {
 		log.Errorf(c, "RefreshToken: json marshal: %v\n", err)
 		return empty
