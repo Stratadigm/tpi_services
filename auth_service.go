@@ -16,7 +16,8 @@ func Login(c context.Context, requestUser *tpi_data.User) (int, []byte) {
 	authBackend := tpi_auth.InitJWTAuthenticationBackend()
 
 	if authBackend.Authenticate(c, requestUser) {
-		token, err := authBackend.GenerateToken(strconv.Itoa(int(requestUser.Id)))
+		//token, err := authBackend.GenerateToken(strconv.Itoa(int(requestUser.Id)))
+		token, err := authBackend.GenerateToken(requestUser.Email)
 		if err != nil {
 			return http.StatusInternalServerError, []byte("")
 		} else {
@@ -47,6 +48,7 @@ func RefreshToken(c context.Context, requestUser *tpi_data.User) []byte {
 }
 
 func Logout(c context.Context, req *http.Request) error {
+
 	authBackend := tpi_auth.InitJWTAuthenticationBackend()
 	tokenRequest, err := request.ParseFromRequest(req, request.OAuth2Extractor, func(token *jwt.Token) (interface{}, error) {
 		return authBackend.PublicKey, nil
@@ -57,4 +59,5 @@ func Logout(c context.Context, req *http.Request) error {
 	}
 	tokenString := req.Header.Get("Authorization")
 	return authBackend.Logout(tokenString, tokenRequest)
+
 }
