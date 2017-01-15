@@ -2,20 +2,29 @@ package tpi_services
 
 import (
 	"encoding/json"
-	jwt "github.com/dgrijalva/jwt-go"
-	request "github.com/dgrijalva/jwt-go/request"
+	// jwt "github.com/dgrijalva/jwt-go"
+	// request "github.com/dgrijalva/jwt-go/request"
 	"github.com/stratadigm/tpi_auth"
 	"github.com/stratadigm/tpi_data"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine/log"
 	"net/http"
-	"strconv"
+	//"strconv"
+	//"strings"
 )
 
 func Login(c context.Context, requestUser *tpi_data.User) (int, []byte) {
+
 	authBackend := tpi_auth.InitJWTAuthenticationBackend()
 
-	if authBackend.Authenticate(c, requestUser) {
+	adsc := tpi_data.NewDSwc(c) //&tpi_data.DS{Ctx: c}
+	validUser, err := adsc.GetUserwEmail(requestUser.Email)
+	if err != nil {
+		log.Errorf(c, "login invalid user %v \n", err)
+		return http.StatusUnauthorized, []byte("")
+	}
+
+	if authBackend.Authenticate(validUser, requestUser) {
 		//token, err := authBackend.GenerateToken(strconv.Itoa(int(requestUser.Id)))
 		token, err := authBackend.GenerateToken(requestUser.Email)
 		if err != nil {
@@ -27,37 +36,42 @@ func Login(c context.Context, requestUser *tpi_data.User) (int, []byte) {
 	}
 
 	return http.StatusUnauthorized, []byte("")
+
 }
 
-func RefreshToken(c context.Context, requestUser *tpi_data.User) []byte {
+func RefreshToken(c context.Context, req *http.Request) (int, []byte) {
 
 	empty := make([]byte, 0)
 	authBackend := tpi_auth.InitJWTAuthenticationBackend()
-	token, err := authBackend.GenerateToken(strconv.Itoa(int(requestUser.Id)))
+	token, err := authBackend.RefreshToken(req)
 	if err != nil {
-		log.Errorf(c, "RefreshToken: generate token: %v\n", err)
-		return empty
+		log.Errorf(c, "refresh token: generate token: %v\n", err)
+		return http.StatusUnauthorized, empty
 	}
 	response, err := json.Marshal(token)
 	if err != nil {
-		log.Errorf(c, "RefreshToken: json marshal: %v\n", err)
-		return empty
+		log.Errorf(c, "refresh token: json marshal: %v\n", err)
+		return http.StatusUnauthorized, empty
 	}
-	return response
+	return http.StatusAccepted, response
 
 }
 
 func Logout(c context.Context, req *http.Request) error {
 
 	authBackend := tpi_auth.InitJWTAuthenticationBackend()
-	tokenRequest, err := request.ParseFromRequest(req, request.OAuth2Extractor, func(token *jwt.Token) (interface{}, error) {
-		return authBackend.PublicKey, nil
-	})
-	if err != nil {
-		log.Errorf(c, "Logout: parse token from req: %v\n", err)
-		return err
+	//tokenString := strings.TrimSpace(req.Header.Get("Authorization"))
+	if tokStr, err := authBackend.Logout(req); err != nil {
+		log.Errorf(c, "service logout %v \n", err)
+		return nil
+
+	} else { // valid unexpired token needs to be black listed after logout
+
+		adsc := tpi_data.NewDSwc(c)
+		if err1 := adsc.PutToken(tokStr); err != nil {
+			log.Errorf(c, "service logout black list token %v \n", err1)
+		}
+		return nil
 	}
-	tokenString := req.Header.Get("Authorization")
-	return authBackend.Logout(tokenString, tokenRequest)
 
 }
